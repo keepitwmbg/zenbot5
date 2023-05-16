@@ -1,0 +1,353 @@
+[
+  {
+    "id": "btc_jpy",
+    "asset": "BTC",
+    "currency": "JPY",
+    "min_size": 0.0001,
+    "max_size": 1000,
+    "increment": "1",
+    "label": "BTC/JPY"
+  },
+  {
+    "id": "xrp_jpy",
+    "asset": "XRP",
+    "currency": "JPY",
+    "min_size": 0.0001,
+    "max_size": 40000000,
+    "increment": "1",
+    "label": "XRP/JPY"
+  },
+  {
+    "id": "eth_jpy",
+    "asset": "ETH",
+    "currency": "JPY",
+    "min_size": 0.0001,
+    "max_size": 10000,
+    "increment": "1",
+    "label": "ETH/JPY"
+  },
+  {
+    "id": "matic_jpy",
+    "asset": "MATIC",
+    "currency": "JPY",
+    "min_size": 0.0001,
+    "max_size": 3000000,
+    "increment": "1",
+    "label": "MATIC/JPY"
+  },
+  {
+    "id": "dot_jpy",
+    "asset": "DOT",
+    "currency": "JPY",
+    "min_size": 0.0001,
+    "max_size": 200000,
+    "increment": "1",
+    "label": "DOT/JPY"
+  },
+  {
+    "id": "doge_jpy",
+    "asset": "DOGE",
+    "currency": "JPY",
+    "min_size": 0.0001,
+    "max_size": 20000000,
+    "increment": "1",
+    "label": "DOGE/JPY"
+  },
+  {
+    "id": "ltc_jpy",
+    "asset": "LTC",
+    "currency": "JPY",
+    "min_size": 0.0001,
+    "max_size": 20000,
+    "increment": "1",
+    "label": "LTC/JPY"
+  },
+  {
+    "id": "bcc_jpy",
+    "asset": "BCH",
+    "currency": "JPY",
+    "min_size": 0.0001,
+    "max_size": 3000,
+    "increment": "1",
+    "label": "BCH/JPY"
+  },
+  {
+    "id": "mona_jpy",
+    "asset": "MONA",
+    "currency": "JPY",
+    "min_size": 0.0001,
+    "max_size": 200000,
+    "increment": "1",
+    "label": "MONA/JPY"
+  },
+  {
+    "id": "xlm_jpy",
+    "asset": "XLM",
+    "currency": "JPY",
+    "min_size": 0.0001,
+    "max_size": 30000000,
+    "increment": "1",
+    "label": "XLM/JPY"
+  },
+  {
+    "id": "qtum_jpy",
+    "asset": "QTUM",
+    "currency": "JPY",
+    "min_size": 0.0001,
+    "max_size": 900000,
+    "increment": "1",
+    "label": "QTUM/JPY"
+  },
+  {
+    "id": "bat_jpy",
+    "asset": "BAT",
+    "currency": "JPY",
+    "min_size": 0.0001,
+    "max_size": 7000000,
+    "increment": "1",
+    "label": "BAT/JPY"
+  },
+  {
+    "id": "omg_jpy",
+    "asset": "OMG",
+    "currency": "JPY",
+    "min_size": 0.0001,
+    "max_size": 2000000,
+    "increment": "1",
+    "label": "OMG/JPY"
+  },
+  {
+    "id": "xym_jpy",
+    "asset": "XYM",
+    "currency": "JPY",
+    "min_size": 0.0001,
+    "max_size": 7000000,
+    "increment": "1",
+    "label": "XYM/JPY"
+  },
+  {
+    "id": "link_jpy",
+    "asset": "LINK",
+    "currency": "JPY",
+    "min_size": 0.0001,
+    "max_size": 300000,
+    "increment": "1",
+    "label": "LINK/JPY"
+  },
+  {
+    "id": "mkr_jpy",
+    "asset": "MKR",
+    "currency": "JPY",
+    "min_size": 0.0001,
+    "max_size": 1000,
+    "increment": "1",
+    "label": "MKR/JPY"
+  },
+  {
+    "id": "boba_jpy",
+    "asset": "BOBA",
+    "currency": "JPY",
+    "min_size": 0.0001,
+    "max_size": 900000,
+    "increment": "1",
+    "label": "BOBA/JPY"
+  },
+  {
+    "id": "enj_jpy",
+    "asset": "ENJ",
+    "currency": "JPY",
+    "min_size": 0.0001,
+    "max_size": 4000000,
+    "increment": "1",
+    "label": "ENJ/JPY"
+  },
+  {
+    "id": "astr_jpy",
+    "asset": "ASTR",
+    "currency": "JPY",
+    "min_size": 0.0001,
+    "max_size": 6000000,
+    "increment": "1",
+    "label": "ASTR/JPY"
+  },
+  {
+    "id": "ada_jpy",
+    "asset": "ADA",
+    "currency": "JPY",
+    "min_size": 0.0001,
+    "max_size": 2000000,
+    "increment": "1",
+    "label": "ADA/JPY"
+  },
+  {
+    "id": "avax_jpy",
+    "asset": "AVAX",
+    "currency": "JPY",
+    "min_size": 0.0001,
+    "max_size": 9000,
+    "increment": "1",
+    "label": "AVAX/JPY"
+  },
+  {
+    "id": "axs_jpy",
+    "asset": "AXS",
+    "currency": "JPY",
+    "min_size": 0.0001,
+    "max_size": 9000,
+    "increment": "1",
+    "label": "AXS/JPY"
+  },
+  {
+    "id": "flr_jpy",
+    "asset": "FLR",
+    "currency": "JPY",
+    "min_size": 0.0001,
+    "max_size": 20000000,
+    "increment": "1",
+    "label": "FLR/JPY"
+  },
+  {
+    "id": "sand_jpy",
+    "asset": "SAND",
+    "currency": "JPY",
+    "min_size": 0.0001,
+    "max_size": 1000000,
+    "increment": "1",
+    "label": "SAND/JPY"
+  },
+  {
+    "id": "xrp_btc",
+    "asset": "XRP",
+    "currency": "BTC",
+    "min_size": 0.0001,
+    "max_size": 5000000,
+    "increment": "1",
+    "label": "XRP/BTC"
+  },
+  {
+    "id": "eth_btc",
+    "asset": "ETH",
+    "currency": "BTC",
+    "min_size": 0.0001,
+    "max_size": 1000,
+    "increment": "1",
+    "label": "ETH/BTC"
+  },
+  {
+    "id": "ltc_btc",
+    "asset": "LTC",
+    "currency": "BTC",
+    "min_size": 0.0001,
+    "max_size": 1000,
+    "increment": "1",
+    "label": "LTC/BTC"
+  },
+  {
+    "id": "bcc_btc",
+    "asset": "BCH",
+    "currency": "BTC",
+    "min_size": 0.0001,
+    "max_size": 1000,
+    "increment": "1",
+    "label": "BCH/BTC"
+  },
+  {
+    "id": "mona_btc",
+    "asset": "MONA",
+    "currency": "BTC",
+    "min_size": 0.001,
+    "max_size": 1000000,
+    "increment": "0.001",
+    "label": "MONA/BTC"
+  },
+  {
+    "id": "xlm_btc",
+    "asset": "XLM",
+    "currency": "BTC",
+    "min_size": 0.0001,
+    "max_size": 1000000,
+    "increment": "1",
+    "label": "XLM/BTC"
+  },
+  {
+    "id": "qtum_btc",
+    "asset": "QTUM",
+    "currency": "BTC",
+    "min_size": 0.0001,
+    "max_size": 100000,
+    "increment": "1",
+    "label": "QTUM/BTC"
+  },
+  {
+    "id": "bat_btc",
+    "asset": "BAT",
+    "currency": "BTC",
+    "min_size": 0.0001,
+    "max_size": 100000,
+    "increment": "1",
+    "label": "BAT/BTC"
+  },
+  {
+    "id": "omg_btc",
+    "asset": "OMG",
+    "currency": "BTC",
+    "min_size": 0.0001,
+    "max_size": 100000,
+    "increment": "1",
+    "label": "OMG/BTC"
+  },
+  {
+    "id": "xym_btc",
+    "asset": "XYM",
+    "currency": "BTC",
+    "min_size": 0.0001,
+    "max_size": 100000,
+    "increment": "1",
+    "label": "XYM/BTC"
+  },
+  {
+    "id": "link_btc",
+    "asset": "LINK",
+    "currency": "BTC",
+    "min_size": 0.0001,
+    "max_size": 10000,
+    "increment": "1",
+    "label": "LINK/BTC"
+  },
+  {
+    "id": "mkr_btc",
+    "asset": "MKR",
+    "currency": "BTC",
+    "min_size": 0.0001,
+    "max_size": 300,
+    "increment": "1",
+    "label": "MKR/BTC"
+  },
+  {
+    "id": "boba_btc",
+    "asset": "BOBA",
+    "currency": "BTC",
+    "min_size": 0.0001,
+    "max_size": 60000,
+    "increment": "1",
+    "label": "BOBA/BTC"
+  },
+  {
+    "id": "enj_btc",
+    "asset": "ENJ",
+    "currency": "BTC",
+    "min_size": 0.0001,
+    "max_size": 40000,
+    "increment": "1",
+    "label": "ENJ/BTC"
+  },
+  {
+    "id": "matic_btc",
+    "asset": "MATIC",
+    "currency": "BTC",
+    "min_size": 0.0001,
+    "max_size": 100000,
+    "increment": "1",
+    "label": "MATIC/BTC"
+  }
+]
