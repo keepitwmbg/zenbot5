@@ -19,11 +19,11 @@ export default {
     this.option('rsi_divisor', 'sell when RSI reaches high-water reading divided by this value', Number, 2);
   },
 
-  calculate: function (s) {
+  calculate: s => {
     rsi(s, 'rsi', s.options.rsi_periods);
   },
 
-  onPeriod: function (s, cb) {
+  onPeriod: (s, cb) => {
     if (s.in_preroll) return cb();
     if (typeof s.period.rsi === 'number') {
       if (s.trend === undefined && s.period.rsi <= s.options.oversold_rsi) {
@@ -64,7 +64,7 @@ export default {
     cb();
   },
 
-  onReport: function (s) {
+  onReport: s => {
     var cols = [];
     if (typeof s.period.rsi === 'number') {
       var color = 'grey';

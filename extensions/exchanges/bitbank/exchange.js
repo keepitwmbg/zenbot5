@@ -106,7 +106,8 @@ export default conf => {
       try {
         result = await axios.get('https://public.bitbank.cc/' + symbol.toLowerCase().replace('/', '_') + '/transactions/' + fulldate);
       } catch (error) {
-        return retry('getTrades', func_args);
+        // return retry('getTrades', func_args);
+        if (error) throw error;
       }
       let newtrades = [];
       let trades = result.data.data.transactions.map(trade => ({

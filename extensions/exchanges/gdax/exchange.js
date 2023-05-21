@@ -371,11 +371,11 @@ export default function (conf) {
 
       return {
         err: null,
-        data: balance
+        data: balance,
       };
     },
 
-    getQuote: opts => {
+    getQuote: async opts => {
       // check websocket cache first
       if (websocket_cache[opts.product_id]) {
         var ticker = websocket_cache[opts.product_id].ticker;
@@ -403,7 +403,7 @@ export default function (conf) {
             data: {},
           };
         }
-      } catch(err) {
+      } catch (err) {
         retry('getQuote', func_args, err);
       }
     },
