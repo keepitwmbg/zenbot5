@@ -60,6 +60,7 @@ export default (program, conf) => {
         target_time = new Date().getTime() - 86400000 * cmd.days;
       } else {
         if (cmd.start >= 0 && cmd.end >= 0) {
+          // check start and end
           if (moment(cmd.start, 'YYYYMMDDhhmm').isValid() && moment(cmd.end, 'YYYYMMDDhhmm').isValid()) {
             start_time = moment(cmd.start, 'YYYYMMDDhhmm').valueOf();
             target_time = moment(cmd.end, 'YYYYMMDDhhmm').valueOf();
@@ -103,27 +104,26 @@ export default (program, conf) => {
         if (offset) {
           opts.offset = offset;
         }
+        // record opts to last_batch_opts
         last_batch_opts = opts;
         let result = {};
         try {
           result = await exchange.getTrades(opts);
         } catch (err) {
-          if (err) {
-            if (err.code === 'ETIMEDOUT' || err.code === 'ENOTFOUND' || err.code === 'ECONNRESET') {
-              console.error('err backfilling selector: ' + selector.normalized);
-              console.error(err);
-              console.error('retrying...');
-              setImmediate(getNext);
-              return;
-            } else if (err.code === 'ERR_BAD_REQUEST') {
-              console.log('there is no data at ' + days_left + ' days left');
-              result.data = [];
-            } else {
-              console.error('err backfilling selector: ' + selector.normalized);
-              console.error(err);
-              console.error('aborting!');
-              process.exit(1);
-            }
+          if (err.code === 'ETIMEDOUT' || err.code === 'ENOTFOUND' || err.code === 'ECONNRESET') {
+            console.error('err backfilling selector: ' + selector.normalized);
+            console.error(err);
+            console.error('retrying...');
+            setImmediate(getNext);
+            return;
+          } else if (err.code === 'ERR_BAD_REQUEST') {
+            console.log('there is no data at ' + days_left + ' days left');
+            result.data = [];
+          } else {
+            console.error('err backfilling selector: ' + selector.normalized);
+            console.error(err);
+            console.error('aborting!');
+            process.exit(1);
           }
         }
         trades = result.data;
@@ -147,7 +147,7 @@ export default (program, conf) => {
           console.log('\ngetTrades() returned no trades, we may have exhausted the historical data range.');
           process.exit(0);
         }
-        trades.sort(function (a, b) {
+        trades.sort((a, b) => {
           if (mode === 'backward') {
             if (a.time > b.time) return -1;
             if (a.time < b.time) return 1;
@@ -176,8 +176,8 @@ export default (program, conf) => {
           return setTimeout(runTasks, 10000, trades);
         }
 
-        let oldest_time = marker.oldest_time;
-        let newest_time = marker.newest_time;
+        let oldest_time = marker.oldest_time; // record from to oldest_time
+        let newest_time = marker.newest_time; // record to to newest_time
         markers.forEach(other_marker => {
           // for backward scan, if the oldest_time is within another marker's range, skip to the other marker's start point.
           // for forward scan, if the newest_time is within another marker's range, skip to the other marker's end point.

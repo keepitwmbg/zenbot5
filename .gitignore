@@ -43,3 +43,4 @@ database/*
 .vscode/
 nohup.out
 result.html
+yarn-error.log
