@@ -86,6 +86,7 @@ export default conf => {
     historyScanUsesTime: true,
     makerFee: -0.02,
     takerFee: 0.12,
+    backfillRateLimit: 100, //just for safe
 
     getProducts: getProducts,
     roundToNearest: roundToNearest,
@@ -123,10 +124,7 @@ export default conf => {
         }
       }
 
-      return {
-        err: null,
-        data: newtrades,
-      };
+      return trades;
     },
 
     getBalance: async opts => {

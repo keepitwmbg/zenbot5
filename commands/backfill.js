@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import moment from 'moment';
 import path, { dirname } from 'path';
 import tb from 'timebucket';
+import timers from 'timers/promises';
 import { fileURLToPath } from 'url';
 import objectifySelector from '../lib/objectify-selector.js';
 import collectionService from '../lib/services/collection-service.js';
@@ -50,8 +51,10 @@ export default (program, conf) => {
       let mode = exchange.historyScan;
       let last_batch_id, last_batch_opts;
       let offset = exchange.offset;
-      let markers, trades;
+      let markers = [];
+      let trades = [];
 
+      // get target_time and target_time(end_time)
       if (!mode) {
         console.error('cannot backfill ' + selector.normalized + ': exchange does not offer historical data');
         process.exit(0);
@@ -74,6 +77,7 @@ export default (program, conf) => {
         }
       }
 
+      // get resume_markers from db
       let resultRM;
       try {
         resultRM = await resume_markers.find({ selector: selector.normalized }).toArray();
@@ -93,6 +97,7 @@ export default (program, conf) => {
         return 0;
       });
 
+      // get trades data from exchange
       let getNext = async () => {
         let opts = { product_id: selector.product_id };
         if (mode === 'backward') {
@@ -106,9 +111,8 @@ export default (program, conf) => {
         }
         // record opts to last_batch_opts
         last_batch_opts = opts;
-        let result = {};
         try {
-          result = await exchange.getTrades(opts);
+          trades = await exchange.getTrades(opts);
         } catch (err) {
           if (err.code === 'ETIMEDOUT' || err.code === 'ENOTFOUND' || err.code === 'ECONNRESET') {
             console.error('err backfilling selector: ' + selector.normalized);
@@ -117,8 +121,9 @@ export default (program, conf) => {
             setImmediate(getNext);
             return;
           } else if (err.code === 'ERR_BAD_REQUEST') {
-            console.log('there is no data at ' + days_left + ' days left');
-            result.data = [];
+            let current_date = mode === 'backward' ? new Date(marker.oldest_time - 86400000).toISOString() : new Date(marker.newest_time + 86400000).toISOString();
+            console.log('\nthere is no data on', current_date.split('T')[0].red, '.');
+            trades = [];
           } else {
             console.error('err backfilling selector: ' + selector.normalized);
             console.error(err);
@@ -126,15 +131,19 @@ export default (program, conf) => {
             process.exit(1);
           }
         }
-        trades = result.data;
+        // when mode is farward and no trade
         if (mode !== 'backward' && !trades.length) {
+          // if fetch any trade, it means no new data anymore, terminate it.
           if (trade_counter) {
             console.log('\ndownload complete!\n');
             process.exit(0);
           } else {
+            // if fetch no trade, it means error or really no data this day, try again.
+            // it probably doesn't happen often. big exchanges have a large historical data range.
             if (get_trade_retry_count < 5) {
               console.error('\ngetTrades() returned no trades, retrying with smaller interval.');
               get_trade_retry_count++;
+              // probably author of old zenbot want to change a start_time to retry.
               start_time += (target_time - start_time) * 0.4;
               setImmediate(getNext);
               return;
@@ -157,27 +166,29 @@ export default (program, conf) => {
           }
           return 0;
         });
+        // i don't know why it is needed, getting the same data repeatedly may happen.
         if (last_batch_id && last_batch_id === trades[0].trade_id) {
-          console.error('\nerror: getTrades() returned duplicate results');
-          console.error(opts);
-          console.error(last_batch_opts);
+          console.error('\nerror: getTrades() returned duplicate results.');
           process.exit(0);
         }
         last_batch_id = trades[0].trade_id;
-        await runTasks(trades);
+        return;
       };
 
-      let runTasks = async trades => {
+      let runTasks = async () => {
+        // save trades to DB
         try {
           await Promise.all(trades.map(trade => saveTrade(trade)));
         } catch (err) {
+          console.error('\ncannot saveTrade ' + selector.normalized);
           console.error(err);
           console.error('retrying...');
           return setTimeout(runTasks, 10000, trades);
         }
 
-        let oldest_time = marker.oldest_time; // record from to oldest_time
-        let newest_time = marker.newest_time; // record to to newest_time
+        // skip saved data range
+        let oldest_time = marker.oldest_time;
+        let newest_time = marker.newest_time;
         markers.forEach(other_marker => {
           // for backward scan, if the oldest_time is within another marker's range, skip to the other marker's start point.
           // for forward scan, if the newest_time is within another marker's range, skip to the other marker's end point.
@@ -192,44 +203,43 @@ export default (program, conf) => {
         let diff;
         if (oldest_time !== marker.oldest_time) {
           diff = tb(oldest_time - marker.oldest_time).resize('1h').value;
-          console.log('\nskipping ' + diff + ' hrs of previously collected data');
+          console.log('\nskipping ' + diff.toString().yellow + ' hrs of previously collected data.');
         } else if (newest_time !== marker.newest_time) {
           diff = tb(marker.newest_time - newest_time).resize('1h').value;
-          console.log('\nskipping ' + diff + ' hrs of previously collected data');
+          console.log('\nskipping ' + diff.toString().yellow + ' hrs of previously collected data.');
         }
 
         try {
           await resume_markers.replaceOne({ _id: marker.id }, marker, { upsert: true });
         } catch (err) {
-          if (err) throw err;
+          console.error('\ncannot replace resume_markers');
+          console.error(err);
+          console.error('retrying...');
+          setTimeout(runTasks, 10000, trades);
         }
-        setupNext();
       };
 
-      let setupNext = () => {
+      // don't need async here
+      let setupNext = async () => {
         trade_counter += trades.length;
         day_trade_counter += trades.length;
         let current_days_left = 1 + (mode === 'backward' ? tb(marker.oldest_time - target_time).resize('1d').value : tb(target_time - marker.newest_time).resize('1d').value);
+        let current_date = mode === 'backward' ? new Date(marker.oldest_time).toISOString() : new Date(marker.newest_time).toISOString();
         if (current_days_left >= 0 && current_days_left != days_left) {
-          console.log('\n' + selector.normalized, 'saved', day_trade_counter, 'trades', current_days_left, 'days left');
+          console.log('\n' + selector.normalized, 'saved', day_trade_counter, 'trades on', current_date.split('T')[0].red, ',', current_days_left, 'days left.');
           day_trade_counter = 0;
           days_left = current_days_left;
         } else {
           process.stdout.write('.');
         }
 
+        // print out result and terminate this job
         if (mode === 'backward' && marker.oldest_time <= target_time) {
           console.log('\ndownload complete!\n');
           process.exit(0);
         } else if (cmd.start >= 0 && cmd.end >= 0 && target_time <= marker.newest_time) {
           console.log('\ndownload of span (' + cmd.start + ' - ' + cmd.end + ') complete!\n');
           process.exit(0);
-        }
-
-        if (exchange.backfillRateLimit) {
-          setTimeout(getNext, exchange.backfillRateLimit);
-        } else {
-          setImmediate(getNext);
         }
       };
 
@@ -258,6 +268,16 @@ export default (program, conf) => {
         return tradesCollection.replaceOne({ _id: trade.id }, trade, { upsert: true });
       };
 
-      await getNext();
+      // main process(wireless loop)
+      do {
+        // get trades data from exchange
+        await getNext();
+        // save trade and save resume_markers
+        await runTasks();
+        // setup paramaters for next loop
+        await setupNext();
+        // wait ms if backfillRateLimit exists
+        await timers.setTimeout(exchange.backfillRateLimit || 0);
+      } while (true);
     });
 };
