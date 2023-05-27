@@ -104,27 +104,32 @@ export default conf => {
       const symbol = joinProduct(opts.product_id);
       let fulldate = moment(startTime).format('YYYYMMDD');
       let result;
-      try {
-        result = await axios.get('https://public.bitbank.cc/' + symbol.toLowerCase().replace('/', '_') + '/transactions/' + fulldate);
-      } catch (error) {
-        // return retry('getTrades', func_args);
-        if (error) throw error;
-      }
       let newtrades = [];
-      let trades = result.data.data.transactions.map(trade => ({
-        trade_id: trade.transaction_id,
-        time: trade.executed_at,
-        size: parseFloat(trade.amount),
-        price: parseFloat(trade.price),
-        side: trade.side,
-      }));
-      for (let i = 0; i < trades.length; i++) {
-        if (trades[i].time > startTime) {
-          newtrades.push(trades[i]);
+
+      try {
+        let url = 'https://public.bitbank.cc/' + symbol.toLowerCase().replace('/', '_') + '/transactions/' + fulldate;
+        result = await axios.get(url);
+        let trades = result.data.data.transactions.map(trade => ({
+          trade_id: trade.transaction_id,
+          time: trade.executed_at,
+          size: parseFloat(trade.amount),
+          price: parseFloat(trade.price),
+          side: trade.side,
+        }));
+        for (let i = 0; i < trades.length; i++) {
+          if (trades[i].time > startTime) {
+            newtrades.push(trades[i]);
+          }
         }
+      } catch (err) {
+        if (err.code === 'ERR_BAD_REQUEST') {
+          // let current_date = mode === 'backward' ? new Date(marker.oldest_time - 86400000).toISOString() : new Date(marker.newest_time + 86400000).toISOString();
+          // console.log('\nthere is no data on', current_date.split('T')[0].red, '.');
+          return newtrades;
+        } else throw err;
       }
 
-      return trades;
+      return newtrades;
     },
 
     getBalance: async opts => {

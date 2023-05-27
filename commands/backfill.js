@@ -120,10 +120,6 @@ export default (program, conf) => {
             console.error('retrying...');
             setImmediate(getNext);
             return;
-          } else if (err.code === 'ERR_BAD_REQUEST') {
-            let current_date = mode === 'backward' ? new Date(marker.oldest_time - 86400000).toISOString() : new Date(marker.newest_time + 86400000).toISOString();
-            console.log('\nthere is no data on', current_date.split('T')[0].red, '.');
-            trades = [];
           } else {
             console.error('err backfilling selector: ' + selector.normalized);
             console.error(err);
