@@ -122,11 +122,28 @@ export default conf => {
           }
         }
       } catch (err) {
-        if (err.code === 'ERR_BAD_REQUEST') {
-          // let current_date = mode === 'backward' ? new Date(marker.oldest_time - 86400000).toISOString() : new Date(marker.newest_time + 86400000).toISOString();
-          // console.log('\nthere is no data on', current_date.split('T')[0].red, '.');
-          return newtrades;
-        } else throw err;
+        let client = authedClient();
+        let ohlcv;
+        try {
+          ohlcv = await client.fetchOHLCV(symbol, '1m', startTime - (startTime % 60000), null, {});
+        } catch (err) {
+          throw err;
+        }
+        if (ohlcv.length) {
+          let result = await client.fetchTrades(symbol, ohlcv[0][0]);
+          let trades = result.map(trade => ({
+            trade_id: trade.id,
+            time: trade.timestamp,
+            size: parseFloat(trade.amount),
+            price: parseFloat(trade.price),
+            side: trade.side,
+          }));
+          for (let i = 0; i < trades.length; i++) {
+            if (trades[i].time > startTime) {
+              newtrades.push(trades[i]);
+            }
+          }
+        }
       }
 
       return newtrades;
@@ -138,7 +155,7 @@ export default conf => {
       let result;
       try {
         result = await client.fetchBalance();
-      } catch (error) {
+      } catch (err) {
         return retry('getBalance', func_args, null);
       }
       let balance = { asset: 0, currency: 0 };
@@ -161,10 +178,7 @@ export default conf => {
       //   asset_hold: 0,
       // }
 
-      return {
-        err: null,
-        data: balance,
-      };
+      return balance;
     },
 
     getQuote: async opts => {
@@ -210,10 +224,8 @@ export default conf => {
       //   },
       // }
 
-      return {
-        err: null,
-        data: { bid: result.bid, ask: result.ask },
-      };
+      let quote = { bid: result.bid, ask: result.ask };
+      return quote;
     },
 
     getDepth: async opts => {

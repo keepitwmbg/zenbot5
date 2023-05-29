@@ -81,7 +81,7 @@ export default (program, conf) => {
       let resultRM;
       try {
         resultRM = await resume_markers.find({ selector: selector.normalized }).toArray();
-      } catch (e) {
+      } catch (err) {
         if (err) throw err;
       }
       markers = resultRM.sort((a, b) => {

@@ -23,8 +23,8 @@ export default {
     rsi(s, 'rsi', s.options.rsi_periods);
   },
 
-  onPeriod: (s, cb) => {
-    if (s.in_preroll) return cb();
+  onPeriod: s => {
+    if (s.in_preroll) return;
     if (typeof s.period.rsi === 'number') {
       if (s.trend === undefined && s.period.rsi <= s.options.oversold_rsi) {
         s.rsi_low = s.period.rsi;
@@ -61,7 +61,6 @@ export default {
         }
       }
     }
-    cb();
   },
 
   onReport: s => {

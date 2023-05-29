@@ -73,6 +73,8 @@ export default (program, conf) => {
       let s = { options: JSON.parse(JSON.stringify(raw_opts)) };
       let so = s.options;
       let botStartTime;
+      let prev_timeout = null;
+
       if (so.run_for) {
         botStartTime = moment().add(so.run_for, 'm');
       }
@@ -481,7 +483,7 @@ export default (program, conf) => {
       let my_trades_size = 0;
       let my_trades = collectionServiceInstance.getMyTrades();
       let periods = collectionServiceInstance.getPeriods();
-
+      // backfill trade data from exchange
       console.log('fetching pre-roll data:');
       let zenbot_cmd = process.platform === 'win32' ? 'zenbot.bat' : 'zenbot.sh'; // Use 'win32' for 64 bit windows too
       let command_args = ['backfill', so.selector.normalized, '--days', days || 1];
@@ -491,126 +493,161 @@ export default (program, conf) => {
       let backfiller = spawn(path.resolve(__dirname, '..', zenbot_cmd), command_args);
       backfiller.stdout.pipe(process.stdout);
       backfiller.stderr.pipe(process.stderr);
-      backfiller.on('exit', code => {
+      backfiller.on('exit', async code => {
         if (code) {
           process.exit(code);
         }
-        let getNext = async () => {
-          let opts = {
+        engine.writeHeader();
+
+        // get trade record from db
+        let trades = [];
+        do {
+          trades = await getTradeFromDB();
+        } while (trades.length == 0);
+
+        // if there is no trade record in db, perpare to start trading
+        await startTrading();
+
+        // fetch trade record from exchange and calculate
+        forwardScan();
+        setInterval(forwardScan, so.poll_trades);
+      });
+
+      let getTradeFromDB = async () => {
+        let opts = {
+          query: {
+            selector: so.selector.normalized,
+          },
+          sort: { time: 1 },
+          limit: 1000,
+        };
+        if (db_cursor) {
+          opts.query.time = { $gt: db_cursor };
+        } else {
+          trade_cursor = s.exchange.getCursor(query_start);
+          opts.query.time = { $gte: query_start };
+        }
+        let trades;
+        try {
+          // fetch trade from db
+          // todo retry
+          trades = await trades_dao.find(opts.query).limit(opts.limit).sort(opts.sort).toArray();
+        } catch (err) {
+          console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - get trades from DB failed.');
+          console.error(err);
+          process.exit(1);
+        }
+        if (trades.length && so.use_prev_trades) {
+          let prevOpts = {
             query: {
               selector: so.selector.normalized,
             },
-            sort: { time: 1 },
-            limit: 1000,
+            limit: so.min_prev_trades,
           };
-          if (db_cursor) {
-            opts.query.time = { $gt: db_cursor };
-          } else {
-            trade_cursor = s.exchange.getCursor(query_start);
-            opts.query.time = { $gte: query_start };
+          if (!so.min_prev_trades) {
+            prevOpts.query.time = { $gte: trades[0].time };
           }
-          let trades;
+          let myPrevTrades;
           try {
-            // fetch trade from db
-            trades = await trades_dao.find(opts.query).limit(opts.limit).sort(opts.sort).toArray();
+            // get the last transaction from db
+            // todo retry
+            myPrevTrades = await my_trades.find(prevOpts.query).sort({ $natural: -1 }).limit(prevOpts.limit).toArray();
           } catch (err) {
-            if (err) throw err;
+            console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - get my_trades from DB failed.');
+            console.error(err);
+            process.exit(1);
           }
-          if (trades.length && so.use_prev_trades) {
-            let prevOpts = {
-              query: {
-                selector: so.selector.normalized,
-              },
-              limit: so.min_prev_trades,
-            };
-            if (!so.min_prev_trades) {
-              prevOpts.query.time = { $gte: trades[0].time };
-            }
-            let myPrevTrades;
-            try {
-              // get the last transaction from db
-              myPrevTrades = await my_trades.find(prevOpts.query).sort({ $natural: -1 }).limit(prevOpts.limit).toArray();
-            } catch (err) {
-              if (err) throw err;
-            }
-            if (myPrevTrades.length) {
-              s.my_prev_trades = myPrevTrades.reverse().slice(0); // simple copy, less recent executed first
-            }
+          if (myPrevTrades.length) {
+            s.my_prev_trades = myPrevTrades.reverse().slice(0); // simple copy, less recent executed first
           }
-          if (!trades.length) {
-            let head = '------------------------------------------ INITIALIZE  OUTPUT ------------------------------------------';
-            console.log(head);
-            await output(conf).initializeOutput(s);
-            let minuses = Math.floor((head.length - so.mode.length - 19) / 2);
-            console.log('-'.repeat(minuses) + ' STARTING ' + so.mode.toUpperCase() + ' TRADING ' + '-'.repeat(minuses + (minuses % 2 == 0 ? 0 : 1)));
-            if (so.mode === 'paper') {
-              console.log('!!! Paper mode enabled. No real trades are performed until you remove --paper from the startup command.');
-            }
-            console.log('Press ' + ' l '.inverse + ' to list available commands.');
+        }
+        let lastTrade = trades[trades.length - 1];
+        db_cursor = lastTrade.time;
+        trade_cursor = s.exchange.getCursor(lastTrade);
+        try {
+          // is_preroll = true, means only cauculate strategies it will not buy or sell
+          await engine.update(trades, true);
+        } catch (err) {
+          console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - An error accored at engine.update.');
+          console.error(err);
+          process.exit(1);
+        }
+        return trades;
+      };
 
-            // sync Balance
-            engine.syncBalance();
-            session = {
-              id: crypto.randomBytes(4).toString('hex'),
-              selector: so.selector.normalized,
-              started: new Date().getTime(),
-              mode: so.mode,
-              options: so,
-            };
-            session._id = session.id;
-            let prevSessions = await sessions_dao.find({ selector: so.selector.normalized }).limit(1).sort({ started: -1 }).toArray();
-            let prevSession = prevSessions[0];
-            if (prevSession && !cmd.reset_profit) {
-              if (
-                prevSession.orig_capital &&
-                prevSession.orig_price &&
-                prevSession.deposit === so.deposit &&
-                ((so.mode === 'paper' && !raw_opts.currency_capital && !raw_opts.asset_capital) ||
-                  (so.mode === 'live' && prevSession.balance.asset == s.balance.asset && prevSession.balance.currency == s.balance.currency))
-              ) {
-                s.orig_capital = session.orig_capital = prevSession.orig_capital;
-                s.orig_price = session.orig_price = prevSession.orig_price;
-                if (so.mode === 'paper') {
-                  s.balance = prevSession.balance;
-                }
-              }
-            }
-            if (s.lookback.length > so.keep_lookback_periods) {
-              s.lookback.splice(-1, 1);
-            }
+      let startTrading = async () => {
+        let head = '------------------------------------------ INITIALIZE  OUTPUT ------------------------------------------';
+        console.log(head);
+        await output(conf).initializeOutput(s);
+        let minuses = Math.floor((head.length - so.mode.length - 19) / 2);
+        console.log('-'.repeat(minuses) + ' STARTING ' + so.mode.toUpperCase() + ' TRADING ' + '-'.repeat(minuses + (minuses % 2 == 0 ? 0 : 1)));
+        if (so.mode === 'paper') {
+          console.log('!!! Paper mode enabled. No real trades are performed until you remove --paper from the startup command.');
+        }
+        console.log('Press ' + ' l '.inverse + ' to list available commands.');
 
-            await forwardScan();
-            setInterval(forwardScan, so.poll_trades);
-            if (!so.non_interactive) {
-              engine.onMessage(executeCommand);
-            }
-            readline.emitKeypressEvents(process.stdin);
-            if (!so.non_interactive && process.stdin.setRawMode) {
-              process.stdin.setRawMode(true);
-              process.stdin.on('keypress', executeKey);
-            }
-            return;
-          }
-          db_cursor = trades[trades.length - 1].time;
-          trade_cursor = s.exchange.getCursor(trades[trades.length - 1]);
-          try {
-            await engine.update(trades, true);
-          } catch (err) {
-            console.log('An error accored ', err);
-          }
-          setImmediate(getNext);
+        // sync Balance
+        let balance = await engine.syncBalance();
+        console.log('Balance ' + s.exchange.name.toUpperCase(), 'sync balance, balance:' + balance.total + ', currency:' + balance.currency + ', asset:' + balance.asset + '.\n');
+
+        // init session(global) for this time of trade command
+        // it wont be re-init unless process.exit;
+        session = {
+          id: crypto.randomBytes(4).toString('hex'),
+          selector: so.selector.normalized,
+          started: new Date().getTime(),
+          mode: so.mode,
+          options: so,
         };
-        engine.writeHeader();
-        getNext();
-      });
+        session._id = session.id;
 
-      let prev_timeout = null;
+        // check if prev sessions exists
+        let prevSessions;
+        try {
+          prevSessions = await sessions_dao.find({ selector: so.selector.normalized }).limit(1).sort({ started: -1 }).toArray();
+        } catch (err) {
+          console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - An error accored at find prevSessions.');
+          console.error(err);
+          process.exit(1);
+        }
+        // if prev sessions exists
+        let prevSession = prevSessions[0];
+        if (prevSession && !cmd.reset_profit) {
+          if (
+            prevSession.orig_capital &&
+            prevSession.orig_price &&
+            prevSession.deposit === so.deposit &&
+            ((so.mode === 'paper' && !raw_opts.currency_capital && !raw_opts.asset_capital) ||
+              (so.mode === 'live' && prevSession.balance.asset == s.balance.asset && prevSession.balance.currency == s.balance.currency))
+          ) {
+            s.orig_capital = session.orig_capital = prevSession.orig_capital;
+            s.orig_price = session.orig_price = prevSession.orig_price;
+            if (so.mode === 'paper') {
+              s.balance = prevSession.balance;
+            }
+          }
+        }
+        if (s.lookback.length > so.keep_lookback_periods) {
+          s.lookback.splice(-1, 1);
+        }
+
+        if (!so.non_interactive) {
+          engine.onMessage(executeCommand);
+        }
+        readline.emitKeypressEvents(process.stdin);
+        if (!so.non_interactive && process.stdin.setRawMode) {
+          process.stdin.setRawMode(true);
+          process.stdin.on('keypress', executeKey);
+        }
+        return;
+      };
+
       let forwardScan = async () => {
+        let trades;
         let opts = {
           product_id: so.selector.product_id,
           from: trade_cursor + 1,
         };
-        let trades;
         try {
           trades = await s.exchange.getTrades(opts);
         } catch (err) {
@@ -640,20 +677,18 @@ export default (program, conf) => {
             return 0;
           });
           // maybe can not use async/await
-          trades.forEach(async trade => {
+          for (const trade of trades) {
             let this_cursor = s.exchange.getCursor(trade);
             trade_cursor = Math.max(this_cursor, trade_cursor);
             await saveTrade(trade);
-          });
-          // todotodotodotodotodotodotodotodotodotodotodotodotodotodotodotodotodo
+          }
           try {
-            let resultTrade = await engine.update(trades);
+            await engine.update(trades, false);
           } catch (err) {
             console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - error saving session');
             console.error(err);
-            setImmediate(getNext);
+            setImmediate(getTradeFromDB);
           }
-          // todotodotodotodotodotodotodotodotodotodotodotodotodotodotodotodotodo
           try {
             resume_markers_dao.replaceOne({ _id: marker.id }, marker, { upsert: true });
           } catch (err) {
@@ -690,6 +725,7 @@ export default (program, conf) => {
           await saveSession();
         }
       };
+
       let savePeriod = period => {
         if (!period.id) {
           period.id = crypto.randomBytes(4).toString('hex');
@@ -704,6 +740,7 @@ export default (program, conf) => {
           }
         });
       };
+
       let saveSession = async () => {
         await engine.syncBalance();
         // let result = await engine.syncBalance();
@@ -783,6 +820,7 @@ export default (program, conf) => {
           process.stdout.write('Waiting on first live trade to display reports, could be a few minutes ...');
         }
       };
+
       let saveTrade = async trade => {
         trade.id = so.selector.normalized + '-' + String(trade.trade_id);
         trade._id = trade.id;
@@ -795,7 +833,9 @@ export default (program, conf) => {
         marker.to = marker.to ? Math.max(marker.to, trade_cursor) : trade_cursor;
         marker.newest_time = Math.max(marker.newest_time, trade.time);
         try {
-          trades.insertOne(trade);
+          // todo is it ok to replaceOne instead of insertOne?
+          // trades_dao.insertOne(trade);
+          trades_dao.replaceOne({ _id: trade.id }, trade, { upsert: true });
         } catch (err) {
           if (err && err.code !== 11000) {
             console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - error saving trade');
