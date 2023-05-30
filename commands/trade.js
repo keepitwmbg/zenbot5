@@ -445,7 +445,7 @@ export default (program, conf) => {
           debug.flip();
           printLog('DEBUG mode: ' + (debug.on ? 'ON'.green.inverse : 'OFF'.red.inverse), true);
         } else if (info.name === 'c' && info.ctrl) {
-          // @todo: cancel open orders before exit
+          // @TODO: cancel open orders before exit
           process.exit();
         }
 
@@ -481,8 +481,8 @@ export default (program, conf) => {
       marker._id = marker.id;
       let lookback_size = 0;
       let my_trades_size = 0;
-      let my_trades = collectionServiceInstance.getMyTrades();
-      let periods = collectionServiceInstance.getPeriods();
+      let my_trades_dao = collectionServiceInstance.getMyTrades();
+      let periods_dao = collectionServiceInstance.getPeriods();
       // backfill trade data from exchange
       console.log('fetching pre-roll data:');
       let zenbot_cmd = process.platform === 'win32' ? 'zenbot.bat' : 'zenbot.sh'; // Use 'win32' for 64 bit windows too
@@ -530,7 +530,7 @@ export default (program, conf) => {
         let trades;
         try {
           // fetch trade from db
-          // todo retry
+          // TODO retry
           trades = await trades_dao.find(opts.query).limit(opts.limit).sort(opts.sort).toArray();
         } catch (err) {
           console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - get trades from DB failed.');
@@ -550,8 +550,8 @@ export default (program, conf) => {
           let myPrevTrades;
           try {
             // get the last transaction from db
-            // todo retry
-            myPrevTrades = await my_trades.find(prevOpts.query).sort({ $natural: -1 }).limit(prevOpts.limit).toArray();
+            // TODO retry
+            myPrevTrades = await my_trades_dao.find(prevOpts.query).sort({ $natural: -1 }).limit(prevOpts.limit).toArray();
           } catch (err) {
             console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - get my_trades from DB failed.');
             console.error(err);
@@ -588,7 +588,22 @@ export default (program, conf) => {
 
         // sync Balance
         let balance = await engine.syncBalance();
-        console.log('Balance ' + s.exchange.name.toUpperCase(), 'sync balance, balance:' + balance.total + ', currency:' + balance.currency + ', asset:' + balance.asset + '.\n');
+        console.log(
+          'Balance ' + s.exchange.name.toUpperCase(),
+          'sync balance, total balance:' +
+            balance.real_capital +
+            ' ' +
+            balance.currency +
+            ', currency:' +
+            balance.net_currency +
+            ' ' +
+            balance.currency +
+            ', asset:' +
+            balance.net_asset +
+            ' ' +
+            balance.asset +
+            '.\n'
+        );
 
         // init session(global) for this time of trade command
         // it wont be re-init unless process.exit;
@@ -627,6 +642,7 @@ export default (program, conf) => {
             }
           }
         }
+        // delete oldest lookback element if over limit
         if (s.lookback.length > so.keep_lookback_periods) {
           s.lookback.splice(-1, 1);
         }
@@ -646,11 +662,12 @@ export default (program, conf) => {
         let trades;
         let opts = {
           product_id: so.selector.product_id,
-          from: trade_cursor + 1,
+          from: trade_cursor + 1, // last trade.time + 1
         };
         try {
           trades = await s.exchange.getTrades(opts);
         } catch (err) {
+          // retry at next forwardScan
           if (err.code === 'ETIMEDOUT' || err.code === 'ENOTFOUND' || err.code === 'ECONNRESET') {
             if (prev_timeout) {
               console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - getTrades request timed out. retrying...');
@@ -670,75 +687,85 @@ export default (program, conf) => {
 
         prev_timeout = null;
 
-        if (trades.length) {
+        if (trades.length == 0) {
+          // update trade_cursor
+          trade_cursor += parseInt(so.poll_trades);
+          await saveSession();
+        } else {
           trades.sort(function (a, b) {
             if (a.time > b.time) return -1;
             if (a.time < b.time) return 1;
             return 0;
           });
-          // maybe can not use async/await
           for (const trade of trades) {
             let this_cursor = s.exchange.getCursor(trade);
-            trade_cursor = Math.max(this_cursor, trade_cursor);
-            await saveTrade(trade);
+            trade_cursor = Math.max(this_cursor, trade_cursor); //get last trade_cursor
+            //no need to use await
+            saveTrade(trade);
           }
           try {
+            // is_preroll = false means these data is new and will execute buy or sell
             await engine.update(trades, false);
           } catch (err) {
-            console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - error saving session');
+            // retry at next forwardScan
+            console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - error engine update. retrying...');
             console.error(err);
-            setImmediate(getTradeFromDB);
           }
           try {
-            resume_markers_dao.replaceOne({ _id: marker.id }, marker, { upsert: true });
+            await resume_markers_dao.replaceOne({ _id: marker.id }, marker, { upsert: true });
           } catch (err) {
-            console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - error saving marker');
+            // retry at next forwardScan
+            console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - error saving marker. retrying...');
             console.error(err);
           }
 
           if (s.my_trades.length > my_trades_size) {
-            s.my_trades.slice(my_trades_size).forEach(function (my_trade) {
+            // delete my_trade which is saved alreadly
+            s.my_trades.slice(my_trades_size);
+            // save my_trade to DB
+            for (let my_trade in s.my_trades) {
               my_trade.id = crypto.randomBytes(4).toString('hex');
               my_trade._id = my_trade.id;
               my_trade.selector = so.selector.normalized;
               my_trade.session_id = session.id;
               my_trade.mode = so.mode;
-              my_trades.insertOne(my_trade, function (err) {
-                if (err) {
-                  console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - error saving my_trade');
-                  console.error(err);
-                }
-              });
-            });
+              try {
+                await my_trades_dao.insertOne(my_trade);
+              } catch (err) {
+                // retry at next forwardScan
+                console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - error saving my_trade. retrying...');
+                console.error(err);
+              }
+            }
             my_trades_size = s.my_trades.length;
           }
           if (s.lookback.length > lookback_size) {
+            // save prev period
             savePeriod(s.lookback[0]);
             lookback_size = s.lookback.length;
           }
           if (s.period) {
+            // save newest period
             savePeriod(s.period);
           }
-          await saveSession();
-        } else {
-          trade_cursor += parseInt(so.poll_trades);
-          await saveSession();
+          saveSession();
         }
       };
 
-      let savePeriod = period => {
+      let savePeriod = async period => {
         if (!period.id) {
           period.id = crypto.randomBytes(4).toString('hex');
           period.selector = so.selector.normalized;
           period.session_id = session.id;
         }
         period._id = period.id;
-        periods.replaceOne({ _id: period.id }, period, { upsert: true }, function (err) {
-          if (err) {
-            console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - error saving my_trade');
-            console.error(err);
-          }
-        });
+        try {
+          await periods_dao.replaceOne({ _id: period.id }, period, { upsert: true });
+        } catch (err) {
+          // retry at next forwardScan
+          console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - error saving my_trade');
+          console.error(err);
+        }
       };
 
       let saveSession = async () => {
@@ -790,12 +817,13 @@ export default (program, conf) => {
           b.vs_buy_hold = (b.consolidated - b.buy_hold) / b.buy_hold;
           conf.output.api.on && printTrade(false, false, true);
           if (so.mode === 'live') {
-            balances_dao.replaceOne({ _id: b.id }, b, { upsert: true }, function (err) {
-              if (err) {
-                console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - error saving balance');
-                console.error(err);
-              }
-            });
+            try {
+              balances_dao.replaceOne({ _id: b.id }, b, { upsert: true });
+            } catch (err) {
+              // retry at next forwardScan
+              console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - error saving balance');
+              console.error(err);
+            }
           }
           session.balance = b;
         } else {
@@ -833,7 +861,7 @@ export default (program, conf) => {
         marker.to = marker.to ? Math.max(marker.to, trade_cursor) : trade_cursor;
         marker.newest_time = Math.max(marker.newest_time, trade.time);
         try {
-          // todo is it ok to replaceOne instead of insertOne?
+          // TODO is it ok to replaceOne instead of insertOne?
           // trades_dao.insertOne(trade);
           trades_dao.replaceOne({ _id: trade.id }, trade, { upsert: true });
         } catch (err) {

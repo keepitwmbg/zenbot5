@@ -19,10 +19,12 @@ export default {
     this.option('rsi_divisor', 'sell when RSI reaches high-water reading divided by this value', Number, 2);
   },
 
+  // excute every trade
   calculate: s => {
     rsi(s, 'rsi', s.options.rsi_periods);
   },
 
+  // excute only on Period ended
   onPeriod: s => {
     if (s.in_preroll) return;
     if (typeof s.period.rsi === 'number') {
