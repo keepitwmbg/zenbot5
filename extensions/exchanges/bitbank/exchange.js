@@ -152,23 +152,23 @@ export default conf => {
     getBalance: async opts => {
       let func_args = [opts];
       let client = authedClient();
-      let result;
+      let balance = { asset: 0, currency: 0 };
+
       try {
-        result = await client.fetchBalance();
+        let result = await client.fetchBalance();
+        Object.keys(result).forEach(key => {
+          if (key === opts.currency) {
+            balance.currency = result[key].free + result[key].used;
+            balance.currency_hold = result[key].used;
+          }
+          if (key === opts.asset) {
+            balance.asset = result[key].free + result[key].used;
+            balance.asset_hold = result[key].used;
+          }
+        });
       } catch (err) {
         return retry('getBalance', func_args, null);
       }
-      let balance = { asset: 0, currency: 0 };
-      Object.keys(result).forEach(key => {
-        if (key === opts.currency) {
-          balance.currency = result[key].free + result[key].used;
-          balance.currency_hold = result[key].used;
-        }
-        if (key === opts.asset) {
-          balance.asset = result[key].free + result[key].used;
-          balance.asset_hold = result[key].used;
-        }
-      });
 
       // balance
       // {

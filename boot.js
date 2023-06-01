@@ -14,7 +14,7 @@ export default async () => {
   let config = {};
   let overrides = {};
 
-  // module.exports.debug = args.debug;
+  zenbot.debug = args.debug;
 
   // 1. load conf overrides file if present
   if (!_.isUndefined(args.conf)) {

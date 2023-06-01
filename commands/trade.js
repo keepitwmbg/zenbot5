@@ -720,10 +720,10 @@ export default (program, conf) => {
           }
 
           if (s.my_trades.length > my_trades_size) {
-            // delete my_trade which is saved alreadly
-            s.my_trades.slice(my_trades_size);
+            // get my_trade which is not saved
+            let my_trades = s.my_trades.slice(my_trades_size);
             // save my_trade to DB
-            for (let my_trade in s.my_trades) {
+            for (let my_trade in my_trades) {
               my_trade.id = crypto.randomBytes(4).toString('hex');
               my_trade._id = my_trade.id;
               my_trade.selector = so.selector.normalized;
@@ -769,21 +769,11 @@ export default (program, conf) => {
       };
 
       let saveSession = async () => {
+        // no err will happen here
         await engine.syncBalance();
-        // let result = await engine.syncBalance();
-        // let err = result.err;
-        // if (!err && s.balance.asset === undefined) {
-        //   // TODO not the nicest place to verify the state, but did not found a better one
-        //   throw new Error('Error during syncing balance. Please check your API-Key');
-        // }
-        // if (err) {
-        //   console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - error syncing balance');
-        //   if (err.desc) console.error(err.desc);
-        //   if (err.body) console.error(err.body);
-        //   console.error(err);
-        // }
         if (botStartTime && botStartTime - moment() < 0) {
-          // Not sure if I should just handle exit code directly or thru printTrade.  Decided on printTrade being if code is added there for clean exits this can just take advantage of it.
+          // Not sure if I should just handle exit code directly or thru printTrade.
+          // Decided on printTrade being if code is added there for clean exits this can just take advantage of it.
           engine.exit(() => {
             printTrade(true);
           });

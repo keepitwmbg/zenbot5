@@ -55,12 +55,7 @@ export default (program, conf) => {
       // check order every order_poll_time
       let checkOrder = async () => {
         if (s.api_order) {
-          let result = await s.exchange.getQuote({ product_id: s.product_id });
-          let err = result.err;
-          let quote = result.data;
-          if (err) {
-            throw err;
-          }
+          let quote = await s.exchange.getQuote({ product_id: s.product_id });
           console.log(
             'order status: '.grey +
               s.api_order.status.green +
