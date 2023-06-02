@@ -6,6 +6,7 @@
     "min_size": 0.0001,
     "max_size": 1000,
     "increment": "1",
+    "asset_increment": 0.0001,
     "label": "BTC/JPY"
   },
   {
@@ -15,6 +16,7 @@
     "min_size": 0.0001,
     "max_size": 40000000,
     "increment": "1",
+    "asset_increment": 0.0001,
     "label": "XRP/JPY"
   },
   {
@@ -24,6 +26,7 @@
     "min_size": 0.0001,
     "max_size": 10000,
     "increment": "1",
+    "asset_increment": 0.0001,
     "label": "ETH/JPY"
   },
   {

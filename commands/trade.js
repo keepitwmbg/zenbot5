@@ -192,7 +192,6 @@ export default (program, conf) => {
         let buy_hold = s.start_price ? n(s.period.close).multiply(n(s.start_capital).divide(s.start_price)) : n(tmp_balance);
         let buy_hold_profit = s.start_capital ? n(buy_hold).subtract(s.start_capital).divide(s.start_capital) : n(0);
         if (!statsonly) {
-          console.log();
           let output_lines = [];
           output_lines.push('Strategy: ' + so.strategy);
           output_lines.push('Last balance: ' + n(tmp_balance).format('0.00000000').yellow + ' (' + profit.format('0.00%') + ')');
@@ -723,7 +722,7 @@ export default (program, conf) => {
             // get my_trade which is not saved
             let my_trades = s.my_trades.slice(my_trades_size);
             // save my_trade to DB
-            for (let my_trade in my_trades) {
+            for (let my_trade of my_trades) {
               my_trade.id = crypto.randomBytes(4).toString('hex');
               my_trade._id = my_trade.id;
               my_trade.selector = so.selector.normalized;

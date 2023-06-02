@@ -167,7 +167,7 @@ export default conf => {
           }
         });
       } catch (err) {
-        return retry('getBalance', func_args, null);
+        return retry('getBalance', func_args, err);
       }
 
       // balance
@@ -189,7 +189,7 @@ export default conf => {
       try {
         result = await client.fetchTicker(joinProduct(opts.product_id));
       } catch (err) {
-        return retry('getQuote', func_args, null);
+        return retry('getQuote', func_args, err);
       }
 
       // {
@@ -236,7 +236,7 @@ export default conf => {
       try {
         result = await client.fetchOrderBook(joinProduct(opts.product_id), { limit: opts.limit });
       } catch (err) {
-        return retry('getDepth', func_args, null);
+        return retry('getDepth', func_args, err);
       }
 
       return {
@@ -268,12 +268,13 @@ export default conf => {
         //   expire_at: "1699165055133",
         //   post_only: true,
         // }
-        if (result && result.status === 'CANCELED_UNFILLED') {
-          return { err: null, data: result };
-        }
+
+        // if (result && result.status === 'CANCELED_UNFILLED') {
+        //   return { err: null, data: result };
+        // }
       } catch (err) {
         // decide if this error is allowed for a retry
-        if (!err.message.match('50026')) {
+        if (!err.message.match(new RegExp(/50026/))) {
           // retry is allowed for this error
           return retry('cancelOrder', func_args, err);
         }
@@ -340,7 +341,7 @@ export default conf => {
         //   },
         // };
       } catch (err) {
-        if (err.message.match('60001')) {
+        if (err.message.match(new RegExp(/60001/))) {
           return {
             err: null,
             data: {
@@ -350,7 +351,7 @@ export default conf => {
           };
         }
 
-        return retry('buy', func_args, null);
+        return retry('buy', func_args, err);
       }
 
       order = {
@@ -429,7 +430,7 @@ export default conf => {
         //   },
         // }
       } catch (err) {
-        if (error.message.match('60001')) {
+        if (err.message.match(new RegExp(/'60001'/))) {
           return {
             err: null,
             data: {
@@ -438,7 +439,7 @@ export default conf => {
             },
           };
         }
-        return retry('sell', func_args, null);
+        return retry('sell', func_args, err);
       }
 
       order = {
