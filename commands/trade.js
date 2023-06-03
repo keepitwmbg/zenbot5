@@ -722,7 +722,8 @@ export default (program, conf) => {
             // get my_trade which is not saved
             let my_trades = s.my_trades.slice(my_trades_size);
             // save my_trade to DB
-            for (let my_trade of my_trades) {
+            for (let i = 0; i < my_trades.length; i++) {
+              let my_trade = my_trades[0];
               my_trade.id = crypto.randomBytes(4).toString('hex');
               my_trade._id = my_trade.id;
               my_trade.selector = so.selector.normalized;
