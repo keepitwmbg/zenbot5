@@ -127,6 +127,7 @@ export default conf => {
         try {
           ohlcv = await client.fetchOHLCV(symbol, '1m', startTime - (startTime % 60000), null, {});
         } catch (err) {
+          console.error('An error occurred', err);
           throw err;
         }
         if (ohlcv.length) {
@@ -167,6 +168,7 @@ export default conf => {
           }
         });
       } catch (err) {
+        console.error('An error occurred', err);
         return retry('getBalance', func_args, err);
       }
 
@@ -189,6 +191,7 @@ export default conf => {
       try {
         result = await client.fetchTicker(joinProduct(opts.product_id));
       } catch (err) {
+        console.error('An error occurred', err);
         return retry('getQuote', func_args, err);
       }
 
@@ -231,18 +234,16 @@ export default conf => {
     getDepth: async opts => {
       let func_args = [opts];
       let client = publicClient();
-      let result;
+      let depth;
 
       try {
-        result = await client.fetchOrderBook(joinProduct(opts.product_id), { limit: opts.limit });
+        depth = await client.fetchOrderBook(joinProduct(opts.product_id), { limit: opts.limit });
       } catch (err) {
+        console.error('An error occurred', err);
         return retry('getDepth', func_args, err);
       }
 
-      return {
-        err: null,
-        data: result,
-      };
+      return depth;
     },
 
     cancelOrder: async opts => {
@@ -273,8 +274,9 @@ export default conf => {
         //   return { err: null, data: result };
         // }
       } catch (err) {
+        console.error('An error occurred', err);
         // decide if this error is allowed for a retry
-        if (!err.message.match(new RegExp(/50026/))) {
+        if (!err.message.match(new RegExp(/50026|50027/))) {
           // retry is allowed for this error
           return retry('cancelOrder', func_args, err);
         }
@@ -341,7 +343,9 @@ export default conf => {
         //   },
         // };
       } catch (err) {
+        console.error('An error occurred', err);
         if (err.message.match(new RegExp(/60001/))) {
+          // TODO
           return {
             err: null,
             data: {
